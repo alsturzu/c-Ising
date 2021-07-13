@@ -1,0 +1,297 @@
+/**************************************************************************************************
+*************************************************************************************************** 
+
+		The following code generates the Ising fields for the Ising model simulation
+
+**************************************************************************************************
+**************************************************************************************************/
+
+/**************************************************************************************************
+											Header Files
+**************************************************************************************************/
+
+#define _USE_MATH_DEFINES ; // for calling Pi
+
+#include <iostream>   // cin, cout
+#include <random>     // random_device, mt19937_64, uniform_real_distribution
+#include <array>      // array<TYPE,SIZE>
+#include <set>        // set<TYPE>
+#include <vector>     // vector<TYPE>
+#include <fstream>    // ifstream, ofstream, open, close
+#include <string>     // string, getline
+#include <sstream>    // stringstream
+#include <iomanip>    // setprecision
+#include <cmath>      // atan, acos, cos, sin, M_PI
+
+using namespace std;
+// Need to change this so that I don't make a habit of using namespace std
+// insted try: using std::cout;
+
+/**************************************************************************************************
+								Randomization Functions
+**************************************************************************************************/
+
+//Here I load in the classes from the random header that generate the pseudo-random numbers
+
+random_device rd{};         // Provides a seed (at random) for mt19937_64
+//mt19937_64 engine{rd()};    // Initializes the RNG with a given seed
+mt19937_64 engine{ 200 };    // Initializes the RNG with a given seed
+
+/* Functions */
+
+//////
+//
+// FUNCTION:  spin_randomizer
+// Takes:     No input 
+// Returns:   A random probability at generating either a 1 or -1
+// Comments:  - I wonder if there is a more efficient way to randomly choose between 1 and -1. 
+//			  - I had also originally set this function up as a randomizer of boolean values. 
+//				   I liked the efficiency that it offered but I was worried that not having the 
+//				   values as numbers could make the energy calculations unnecessarily cumbersome.
+
+int spin_randomizer(){
+	uniform_int_distribution <int> int_dist(0, 1);
+	//return static_cast<bool>(bool_dist(rd));
+	int output = int_dist(rd);
+		if (output == 0)
+			return output - 1;
+		else
+			return output;
+}
+
+//////
+//
+// FUNCTION:  spin_randomizer
+// Takes:     No input 
+// Returns:   A random probability at generating either a 1 or -1
+// Comments:  - I wonder if there is a more efficient way to randomly choose between 1 and -1. 
+//			  - I had also originally set this function up as a randomizer of boolean values. 
+//				   I liked the efficiency that it offered but I was worried that not having the 
+//				   values as numbers could make the energy calculations unnecessarily cumbersome.
+
+int int_randomizer(int i, int f) {
+	uniform_int_distribution <int> int_dist(i, f);
+	int output = int_dist(rd);
+	return output;
+}
+/* How does uniform distribution deal with the last end point generation */
+double double_randomizer(double i, double f) {
+	uniform_real_distribution <double> dub_dist(i, f);
+	double output = dub_dist(rd);
+	return output;
+}
+
+
+// Note that this propermod function does not work if x < cap
+int propermod(int x, int y) {
+	if (x < 0) {
+		x += y;
+		return x;
+		}
+	else 
+		return x % y;
+}
+
+class fields {
+
+
+void cold_start() {
+	for (int i = 0; i < L; i++) {
+
+		vector<int> vec;
+
+		for (int j = 0; j < T; j++) {
+			vec.push_back(-1);
+		}
+
+		fldar.push_back(vec);
+	}
+}
+
+void hot_start() {
+	for (int i = 0; i < L; i++) {
+
+		vector<int> vec;
+
+		for (int j = 0; j < T; j++) {
+			vec.push_back(spin_randomizer());
+		}
+
+		fldar.push_back(vec);
+	}
+	}
+
+
+
+public:
+
+	const int L;
+	const int T;
+
+
+	fields(int l, int t) : L(l), T(t) {
+	}
+
+	vector < vector<int> > fldar;
+		
+
+	void set_cold() {
+		cold_start();
+	}
+
+	void set_hot() {
+		hot_start();
+	}
+
+	auto get_lat() {
+		return fldar;
+	}
+
+	int get_ham() {
+		int sum = 0;
+		for (int i = 0; i < L; i++)  // loop 3 times for three lines
+		{
+			for (int j = 0; j < T; j++)  // loop for the three elements on the line
+			{
+				if (i == 0 && j == 0) {
+					sum += fldar[0][0] * fldar[L - 1][0];
+					sum += fldar[0][0] * fldar[0][T - 1];
+				}
+				else if (i == 0) {
+					sum += fldar[0][j] * fldar[L - 1][j];
+					sum += fldar[0][j] * fldar[0][j - 1];
+				}
+				else if (j == 0) {
+					sum += fldar[i][0] * fldar[i][T - 1];
+					sum += fldar[i][0] * fldar[i - 1][0];
+				}
+				else {
+				sum += fldar[i][j] * fldar[i - 1][j];
+				sum += fldar[i][j] * fldar[i][j - 1];
+			}
+			}
+		}
+		return sum;
+	}
+
+	int metropolis_site_energy(int l, int t) {
+		int inenergy = 0;
+		int finenergy = 0;
+
+		inenergy += -1 *fldar[l][t] * (fldar[propermod(l - 1, L)][t] + fldar[l][propermod(t-1, T)] 
+								+  fldar[propermod(l + 1, L)][t] + fldar[l][propermod(t + 1, T)]);
+
+		finenergy += -1 * -1 * fldar[l][t] * (fldar[propermod(l - 1, L)][t] + fldar[l][propermod(t - 1, T)]
+									  + fldar[propermod(l + 1, L)][t] + fldar[l][propermod(t + 1, T)]);
+
+		int endiff = finenergy - inenergy;
+		return endiff;
+	}
+
+	void metropolis_step() {
+		int lsite = int_randomizer(0, L-1);
+		int tsite = int_randomizer(0, T-1);
+
+		int endiff = metropolis_site_energy(lsite, tsite);
+
+		//int bigendiff = 
+
+		double prob = 1;
+
+		if (endiff > 0)
+			prob = exp(-0.2 * endiff);
+
+
+		double probcheck = double_randomizer(0, 1);
+
+
+		/*if (double_randomizer(0, 1) > 0.9999) {
+			cout << "lsite , tsite(" << lsite << ", " << tsite << ")" << endl;
+			cout << "energy difference: " << endiff << endl;
+			cout << "prob: " << prob << endl;
+			cout << "probcheck: " << probcheck << endl;
+		}*/
+
+		
+
+		if (prob > probcheck) {
+			//cout << "prob passed" << endl;
+			fldar[lsite][tsite] = -1 * fldar[lsite][tsite];
+		}
+		//else
+			//cout << "prob failed" << endl;
+	}
+		
+} ;
+
+int main()
+{
+	fields hflds (64, 64);
+	hflds.set_hot();
+	cout << "Hot Lattice Length and Time: " << hflds.L << ", " << hflds.T << endl;
+
+	//fields hflds(5, 5);
+	//hflds.set_hot();
+	//cout << "Hot Lattice Length and Time: " << hflds.L << ", " << hflds.T<< endl;
+
+	cout << "Hot Lattice: " << endl;
+	for (int i = 0; i < hflds.L; i++)  // loop 3 times for three lines
+	{
+		for (int j = 0; j < hflds.T; j++)  // loop for the three elements on the line
+		{
+			cout << hflds.fldar[i][j] << ' ';  // display the current element out of the array
+		}
+		cout << endl;  // when the inner loop is done, go to a new line
+	}
+
+	//cout << "Hot Lattice: " << endl;
+	//for (int i = 0; i < hflds.L; i++)  // loop 3 times for three lines
+	//{
+	//	for (int j = 0; j < hflds.T; j++)  // loop for the three elements on the line
+	//	{
+	//		cout << hflds.fldar[i][j] << ' ';  // display the current element out of the array
+	//	}
+	//	cout << endl;  // when the inner loop is done, go to a new line
+	//}
+	
+	int cham = hflds.get_ham();
+	//int hham = hflds.get_ham();
+
+	cout << "Cold Lattice Hamiltonian: " << cham << endl;
+	//cout << "Hot Lattice Hamiltonian: " << hham << endl;
+
+
+	for (int i = 0; i < 50000000; i++) {
+		hflds.metropolis_step();
+	}
+
+	//cout << "Cold Lattice after metropolis: " << endl;
+	//for (int i = 0; i < cflds.L; i++)  // loop 3 times for three lines
+	//{
+	//	for (int j = 0; j < cflds.T; j++)  // loop for the three elements on the line
+	//	{
+	//		cout << setw(2) << cflds.fldar[i][j] << ' ';  // display the current element out of the array
+	//	}
+	//	cout << endl;  // when the inner loop is done, go to a new line
+	//}
+
+
+	cout << "Hot Lattice after metropolis: " << endl;
+	for (int i = 0; i < hflds.L; i++)  // loop 3 times for three lines
+	{
+		for (int j = 0; j < hflds.T; j++)  // loop for the three elements on the line
+		{	
+			if (hflds.fldar[i][j] == -1)
+				cout << setw(2) << "+" << ' ';
+			else
+				cout << setw(2) << "-" << ' ';
+
+			 // display the current element out of the array
+		}
+		cout << endl;  // when the inner loop is done, go to a new line
+	}
+
+	cout << "Hot Lattice Hamiltonian after metropolis: " << hflds.get_ham() << endl;
+
+	return 0;
+}
